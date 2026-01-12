@@ -1,47 +1,29 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine, text
+from supabase import create_client
 
 # =========================
-# KONFIGURACJA BAZY
+# SUPABASE CONFIG
 # =========================
-DB_URL = "sqlite:///magazyn.db"
-engine = create_engine(DB_URL, future=True)
+st.set_page_config(page_title="Magazyn Pro", layout="wide")
 
-def init_db():
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS kategorie (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nazwa TEXT UNIQUE NOT NULL
-            )
-        """))
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_ANON_KEY"]
 
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS magazyn228 (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nazwa TEXT NOT NULL,
-                liczba INTEGER NOT NULL,
-                cena REAL NOT NULL,
-                categorie INTEGER,
-                FOREIGN KEY (categorie) REFERENCES kategorie(id)
-            )
-        """))
-
-init_db()
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # =========================
 # UI
 # =========================
-st.set_page_config(page_title="Magazyn Pro", layout="wide")
-st.title("📦 System Zarządzania Magazynem")
+st.title("📦 System Zarządzania Magazynem (Supabase PUBLIC)")
 
 # =========================
 # STATYSTYKI
 # =========================
 st.subheader("📊 Podsumowanie Magazynu")
 
-df_stats = pd.read_sql("SELECT liczba, cena FROM magazyn228", engine)
+data = supabase.table("magazyn228").select("liczba, cena").execute().data
+df_stats = pd.DataFrame(data)
 
 if not df_stats.empty:
     total_items = int(df_stats["liczba"].sum())
@@ -73,11 +55,9 @@ with col_kat:
                 st.error("Podaj nazwę kategorii")
             else:
                 try:
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text("INSERT INTO kategorie (nazwa) VALUES (:n)"),
-                            {"n": kat_nazwa.strip()}
-                        )
+                    supabase.table("kategorie").insert(
+                        {"nazwa": kat_nazwa.strip()}
+                    ).execute()
                     st.success(f"Dodano kategorię: {kat_nazwa}")
                     st.rerun()
                 except Exception:
@@ -87,7 +67,8 @@ with col_kat:
 with col_prod:
     st.header("➕ Dodaj produkt")
 
-    df_kat = pd.read_sql("SELECT * FROM kategorie", engine)
+    kat_data = supabase.table("kategorie").select("*").order("nazwa").execute().data
+    df_kat = pd.DataFrame(kat_data)
 
     if df_kat.empty:
         st.warning("Najpierw dodaj kategorię")
@@ -98,27 +79,24 @@ with col_prod:
             prod_nazwa = st.text_input("Nazwa produktu")
             prod_liczba = st.number_input("Ilość", min_value=0, step=1)
             prod_cena = st.number_input("Cena (PLN)", min_value=0.0, step=0.01)
-            prod_kat_name = st.selectbox("Kategoria", list(kategorie_dict.keys()))
+            prod_kat_name = st.selectbox(
+                "Kategoria",
+                list(kategorie_dict.keys())
+            )
+
             submit_prod = st.form_submit_button("Dodaj")
 
             if submit_prod:
                 if prod_nazwa.strip() == "":
                     st.error("Podaj nazwę produktu")
                 else:
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text("""
-                                INSERT INTO magazyn228
-                                (nazwa, liczba, cena, categorie)
-                                VALUES (:n, :l, :c, :k)
-                            """),
-                            {
-                                "n": prod_nazwa.strip(),
-                                "l": int(prod_liczba),
-                                "c": float(prod_cena),
-                                "k": kategorie_dict[prod_kat_name],
-                            },
-                        )
+                    supabase.table("magazyn228").insert({
+                        "nazwa": prod_nazwa.strip(),
+                        "liczba": int(prod_liczba),
+                        "cena": float(prod_cena),
+                        "categorie": kategorie_dict[prod_kat_name],
+                    }).execute()
+
                     st.success(f"Dodano produkt: {prod_nazwa}")
                     st.rerun()
 
@@ -129,18 +107,21 @@ st.divider()
 # =========================
 st.header("🔍 Stan magazynu")
 
-query = """
-    SELECT 
-        m.id,
-        m.nazwa,
-        m.liczba,
-        m.cena,
-        k.nazwa AS kategoria
-    FROM magazyn228 m
-    LEFT JOIN kategorie k ON m.categorie = k.id
-"""
+response = supabase.table("magazyn228").select(
+    "id, nazwa, liczba, cena, kategorie(nazwa)"
+).execute()
 
-df_view = pd.read_sql(query, engine)
+rows = []
+for r in response.data:
+    rows.append({
+        "id": r["id"],
+        "nazwa": r["nazwa"],
+        "liczba": r["liczba"],
+        "cena": r["cena"],
+        "kategoria": r["kategorie"]["nazwa"] if r["kategorie"] else None
+    })
+
+df_view = pd.DataFrame(rows)
 
 if df_view.empty:
     st.info("Brak produktów w magazynie")
@@ -154,17 +135,19 @@ else:
     st.subheader("🗑️ Usuń produkt")
 
     product_map = {
-        f"{row.nazwa} (ID {row.id})": row.id
+        f"{row.nazwa} | {row.kategoria} | ID {row.id}": row.id
         for _, row in df_view.iterrows()
     }
 
-    selected = st.selectbox("Wybierz produkt", list(product_map.keys()))
+    selected = st.selectbox(
+        "Wybierz produkt",
+        list(product_map.keys())
+    )
 
     if st.button("Usuń", type="primary"):
-        with engine.begin() as conn:
-            conn.execute(
-                text("DELETE FROM magazyn228 WHERE id = :id"),
-                {"id": product_map[selected]}
-            )
+        supabase.table("magazyn228").delete().eq(
+            "id", product_map[selected]
+        ).execute()
+
         st.warning("Produkt usunięty")
         st.rerun()
