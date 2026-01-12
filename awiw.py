@@ -9,7 +9,7 @@ st.set_page_config(page_title="Magazyn Pro", layout="wide")
 
 # ❗ WSTAW SWOJE PRAWDZIWE DANE Z SUPABASE
 SUPABASE_URL = "https://cggcehsanonhhkpweokk.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # anon public key
+SUPABASE_ANON_KEY = "sb_publishable_Rslbdu7bwIoOgFSDnfe7xQ_wFR2L5oN"  # anon public key
 
 supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
