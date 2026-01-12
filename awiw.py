@@ -3,14 +3,15 @@ import pandas as pd
 from supabase import create_client
 
 # =========================
-# SUPABASE CONFIG
+# KONFIGURACJA SUPABASE
 # =========================
 st.set_page_config(page_title="Magazyn Pro", layout="wide")
 
-SUPABASE_URL = ["https://cggcehsanonhhkpweokk.supabase.co"]
-SUPABASE_KEY = ["sb_publishable_Rslbdu7bwIoOgFSDnfe7xQ_wFR2L5oN"]
+# ❗ WSTAW SWOJE PRAWDZIWE DANE Z SUPABASE
+SUPABASE_URL = "https://cggcehsanonhhkpweokk.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # anon public key
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # =========================
 # UI
@@ -22,8 +23,12 @@ st.title("📦 System Zarządzania Magazynem (Supabase PUBLIC)")
 # =========================
 st.subheader("📊 Podsumowanie Magazynu")
 
-data = supabase.table("magazyn228").select("liczba, cena").execute().data
-df_stats = pd.DataFrame(data)
+try:
+    data = supabase.table("magazyn228").select("liczba, cena").execute().data
+    df_stats = pd.DataFrame(data)
+except Exception as e:
+    st.error("Błąd połączenia z Supabase")
+    st.stop()
 
 if not df_stats.empty:
     total_items = int(df_stats["liczba"].sum())
