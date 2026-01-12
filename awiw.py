@@ -7,8 +7,8 @@ from supabase import create_client
 # =========================
 st.set_page_config(page_title="Magazyn Pro", layout="wide")
 
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_ANON_KEY"]
+SUPABASE_URL = st.secrets["https://cggcehsanonhhkpweokk.subapase.co"]
+SUPABASE_KEY = st.secrets["sb_publishable_Rslbdu7bwIoOgFSDnfe7xQ_wFR2L5oN"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
